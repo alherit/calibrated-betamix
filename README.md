@@ -1,5 +1,4 @@
 # calibrated-betamix
-Code for paper "Unconditionally Calibrated Priors for Beta Mixture Density Networks"
 
 Python code of our AISTATS 2025 paper : 
 
