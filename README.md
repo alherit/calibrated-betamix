@@ -52,9 +52,9 @@ Please set the following variables accordingly:
 
 ### NYC Taxi drop-off prediction:
 
-	Data in csv format is in the data folder of this repository (obtained from https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page)
+Data in csv format is in the data folder of this repository (obtained from https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page)
 
-	Please set the following variable accordingly:
+Please set the following variable accordingly:
 
     DATA_FOLDER = "../nycdata"
 
