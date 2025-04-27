@@ -35,4 +35,5 @@ dependencies:
     - oryx==0.2.7
     - geopandas==1.0.1
     - geoplot==0.5.1
+    - neural_tangents==0.6.5
     

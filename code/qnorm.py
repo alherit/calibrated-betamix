@@ -1,5 +1,6 @@
+## Translated to python/jax from R source qnorm.c :  https://cran.r-project.org/sources.html
+
 from jax import numpy as jnp
-#import numpy as jnp
 
 # /* Do the boundaries exactly for q*() functions :
 #  * Often  _LEFT_ = ML_NEGINF , and very often _RIGHT_ = ML_POSINF;
@@ -314,21 +315,11 @@ def qnorm5(p, mu, sigma, lower_tail, log_p):
         ### ASSUME log_p = true
         assert(log_p)
         aux = jax.scipy.special.logsumexp(jnp.stack([p,jnp.zeros_like(p)]),axis=0,b=jnp.stack([-jnp.ones_like(p),+jnp.ones_like(p)]))
-        #aux = jnp.log( jnp.where(q > 0 , -jnp.expm1(p) if lower_tail else jnp.exp(p), p_ )  )  
-
-        #aux2 = jnp.log( jnp.where(q > 0 , R_DT_CIv(p, lower_tail, log_p), p_ )  )
-
-        #aux = jnp.where(jnp.isinf(aux), aux2, aux)
-    
-    
-    
-    #aux2 = jnp.log(-jnp.expm1(p))
-
+ 
     
     #jax.debug.print("diff {diff}", diff= aux-aux2)
     #p_ = R_DT_qIv(p, lower_tail, log_p)
     
-    ### ASSUME log_p = true
     ### ASSUME log_p = true
     assert(log_p)
     log_p_ = p if lower_tail else aux
@@ -433,47 +424,23 @@ def qnorm5(p, mu, sigma, lower_tail, log_p):
     if True:
         ### s2, x2 stuff
         s2 = -jnp.ldexp(lp, 1)    # // = -2*lp = 2s
-        #x2 = s2 - jnp.log(M_2PI * s2); # // = xs_1
         x2 = s2 - my_log_or_y(M_2PI * s2); # // = xs_1
     
         
-        def fix_x2(x2):
-            ARBITRARY_POS_VALUE = 1000.
-            cond = (x2<0.) & (qle425 | rle5 | rle27 | rge648)
-            return jnp.where(cond,ARBITRARY_POS_VALUE,x2)
-        
-        #x2 = fix_x2(x2)
-
-
 
         try:
             x2 = jnp.where( r < 36000. , s2 - my_log_or_y(M_2PI * x2) - 2. / (2. + x2) , x2)
-
-            #x2 = jnp.where( r < 36000. , s2 - jnp.log(M_2PI * x2) - 2. / (2. + x2) , x2)
 
         except FloatingPointError:
             jax.debug.print("cond {cond} log_p {log_p} qle425 {qle425} rle5 {rle5} rle27 {rle27} rge648 {rge648} r {r} x2 {x2} s2 {s2}", r=r, x2=x2, s2=s2, qle425=qle425, rle5=rle5, rle27=rle27, rge648=rge648, log_p=p, cond = (x2<0.) & ~qle425 & ~rle5 & ~rle27 & ~rge648)
             exit()
 
-        #x2 = fix_x2(x2)
-
-
-        #x2 = jnp.where( r < 840., s2 - jnp.log(M_2PI * x2) + 2 * jnp.log1p(-(1 - 1 / (4 + x2)) / (2. + x2)), x2)
         x2 = jnp.where( r < 840., s2 - my_log_or_y(M_2PI * x2) + 2 * my_log1p_or_y(-(1 - 1 / (4 + x2)) / (2. + x2)), x2)
 
-        #x2 = fix_x2(x2)
-
-        #x2 = jnp.where( r < 109., s2 - jnp.log(M_2PI * x2) + 2 * jnp.log1p(-(1 - (1 - 5 / (6 + x2)) / (4. + x2)) / (2. + x2)), x2)
         x2 = jnp.where( r < 109., s2 - my_log_or_y(M_2PI * x2) + 2 * my_log1p_or_y(-(1 - (1 - 5 / (6 + x2)) / (4. + x2)) / (2. + x2)), x2)
 
-        #x2 = fix_x2(x2)
-
-        #x2 = jnp.where( r < 55., s2 - jnp.log(M_2PI * x2) + 2 * jnp.log1p(-(1 - (1 - (5 - 9 / (8. + x2)) / (6. + x2)) / (4. + x2)) / (2. + x2)), x2)
         x2 = jnp.where( r < 55., s2 - my_log_or_y(M_2PI * x2) + 2 * my_log1p_or_y(-(1 - (1 - (5 - 9 / (8. + x2)) / (6. + x2)) / (4. + x2)) / (2. + x2)), x2)
 
-        #x2 = fix_x2(x2)
-
-        #val_notrge648 = jnp.sqrt(x2)
         val_notrge648 = my_sqrt_or_y(x2)
 
         val = jnp.where(qle425, val_qle425,
@@ -493,195 +460,6 @@ def qnorm5(p, mu, sigma, lower_tail, log_p):
     
     return mu + sigma * val
 
-# doesnt work well
-def bad_qnorm5(p, mu, sigma, lower_tail, log_p):
-
-    if False: # let's remove this for the moment, but it could go at the end, just overwrite values satisfying the conditions
-
-        if (jnp.isnan(p) or jnp.isnan(mu) or jnp.isnan(sigma)):
-            return p + mu + sigma
-        
-        #R_Q_P01_boundaries(p, ML_NEGINF, ML_POSINF);
-        _LEFT_ = ML_NEGINF
-        _RIGHT_ = ML_POSINF
-        if (log_p):
-
-            if lower_tail:
-                jnp.where(p > 0., NAN, jnp.where(p == 0., _RIGHT_))
-
-            if(p > 0):
-                return NAN
-            if(p == 0): #/* upper bound*/			
-                return _RIGHT_ if lower_tail else _LEFT_
-            if(p == ML_NEGINF):				
-                return _LEFT_ if lower_tail else _RIGHT_
-                                        
-        else:  #/* !log_p */					
-            if(p < 0 or p > 1):				
-                return NAN				
-            if(p == 0):					
-                return _LEFT_ if lower_tail else _RIGHT_	
-            if(p == 1):					
-                return _RIGHT_ if lower_tail else _LEFT_
-        
-
-
-    if (sigma < 0):
-        return NAN * jnp.ones_like(p) 
-    if (sigma == 0):
-        return mu * jnp.ones_like(p)
-
-    p_ = R_DT_qIv(p, lower_tail, log_p); #/* real lower_tail prob. p */
-    q = p_ - 0.5
-
-    #ifdef DEBUG_qnorm
-    #  REprintf("qnorm(p=%10.7g, m=%g, s=%g, l.t.= %d, log= %d): q = %g\n",
-    #           p, mu, sigma, lower_tail, log_p, q);
-    #endif
-
-    #   /*-- use AS 241 --- */
-    #   /* double ppnd16_(double *p, long *ifault)*/
-    #   /*      ALGORITHM AS241  APPL. STATIST. (1988) VOL. 37, NO. 3
-
-    #           Produces the normal deviate Z corresponding to a given lower
-    #           tail area of P; Z is accurate to about 1 part in 10**16.
-
-    #           (original fortran code used PARAMETER(..) for the coefficients
-    #            and provided hash codes for checking them...)
-    #   */
-
-
-    log_p_arr = jnp.full(p.shape, log_p)
-    lower_tail_arr = jnp.full(p.shape, lower_tail)
-
-
-    qle425 = (jnp.abs(q) <= .425)
-    condNOT425a = (log_p_arr & ((lower_tail_arr & (q <= 0)) | (~lower_tail_arr & (q > 0))))
-
-
-    if True:
-        # this is how it is done in R: the problem is that we are doing log (exp())
-        #bad = jnp.log( jnp.where(q > 0 , R_DT_CIv(p, lower_tail, log_p), p_ )  )
-
-        ### ASSUME log_p = true
-        assert(log_p)
-        #bad = jnp.log( jnp.where(q > 0 , -jnp.expm1(p) if lower_tail else jnp.exp(p), p_ )  )  
-        #aux2 = jnp.log(-jnp.expm1(p))
-        aux = jax.scipy.special.logsumexp(jnp.stack([p,jnp.zeros_like(p)]),axis=0,b=jnp.stack([-jnp.ones_like(p),+jnp.ones_like(p)]))
-        #jax.debug.print("diff {diff}", diff= aux-aux2)
-        #p_ = R_DT_qIv(p, lower_tail, log_p)
-        
-        ### ASSUME log_p = true
-        log_p_ = p if lower_tail else aux
-        
-        expr = jnp.where(q > 0 , aux if lower_tail else p, log_p_ )  
-
-        lp = jnp.where(condNOT425a, p, expr)
-
-    else:
-
-        lp = jnp.where(condNOT425a, p, jnp.log( jnp.where(q > 0 , R_DT_CIv(p, lower_tail, log_p), p_ )  ))
-
-    r = jnp.where(qle425, .180625 - q * q , jnp.sqrt(-lp) )
-              
-    val_qle425 = q * (((((((r * 2509.0809287301226727 + 33430.575583588128105) * r + 67265.770927008700853) * r + 45921.953931549871457) * r + 13731.693765509461125) * r + 1971.5909503065514427) * r + 133.14166789178437745) * r + 3.387132872796366608) / (((((((r * 5226.495278852854561 + 28729.085735721942674) * r + 39307.89580009271061) * r + 21213.794301586595867) * r + 5394.1960214247511077) * r + 687.1870074920579083) * r + 42.313330701600911252) * r + 1.)
-
-    not_qle425 = ~qle425
-
-    rle5 = (r <= 5.)
-    rle27 = (r <= 27)
-    rge648 = (r >= 6.4e8)
-
-    r += jnp.where(not_qle425 & rle5 , -1.6,
-                   jnp.where( not_qle425 & rle27 , -5, 0.) )
-    
-    val_rle5 =  (((((((r * 7.7454501427834140764e-4 +\
-                        .0227238449892691845833) *\
-                            r +\
-                        .24178072517745061177) *\
-                            r +\
-                        1.27045825245236838258) *\
-                            r +
-                        3.64784832476320460504) *\
-                        r +\
-                    5.7694972214606914055) *\
-                        r +\
-                    4.6303378461565452959) *\
-                        r +\
-                    1.42343711074968357734) /\
-                    (((((((r *\
-                            1.05075007164441684324e-9 +\
-                        5.475938084995344946e-4) *\
-                            r +\
-                        .0151986665636164571966) *\
-                            r +\
-                        .14810397642748007459) *\
-                            r +\
-                        .68976733498510000455) *\
-                        r +\
-                    1.6763848301838038494) *\
-                        r +\
-                    2.05319162663775882187) *\
-                        r +\
-                    1.)
-
-    val_rle27 = (((((((r * 2.01033439929228813265e-7 +\
-                        2.71155556874348757815e-5) *\
-                            r +\
-                        .0012426609473880784386) *\
-                            r +\
-                        .026532189526576123093) *\
-                            r +\
-                        .29656057182850489123) *\
-                        r +\
-                    1.7848265399172913358) *\
-                        r +\
-                    5.4637849111641143699) *\
-                        r +\
-                    6.6579046435011037772) /\
-                    (((((((r *\
-                            2.04426310338993978564e-15 +\
-                        1.4215117583164458887e-7) *\
-                            r +\
-                        1.8463183175100546818e-5) *\
-                            r +\
-                        7.868691311456132591e-4) *\
-                            r +\
-                        .0148753612908506148525) *\
-                        r +\
-                    .13692988092273580531) *\
-                        r +\
-                    .59983220655588793769) *\
-                        r +\
-                    1.)
-
-    val_rge648 = r * M_SQRT2
-
-    if True:
-        ### s2, x2 stuff
-        s2 = -jnp.ldexp(lp, 1)    # // = -2*lp = 2s
-        x2 = s2 - jnp.log(M_2PI * s2); # // = xs_1
-    
-        
-
-        jax.debug.print("log_p {log_p} qle425 {qle425} rle5 {rle5} rle27 {rle27} rge648 {rge648} r {r} x2 {x2} s2 {s2}", r=r, x2=x2, s2=s2, qle425=qle425, rle5=rle5, rle27=rle27, rge648=rge648, log_p=p)
-
-
-        x2 = jnp.where( r < 36000. , s2 - jnp.log(M_2PI * x2) - 2. / (2. + x2) , x2)
-        x2 = jnp.where( r < 840., s2 - jnp.log(M_2PI * x2) + 2 * jnp.log1p(-(1 - 1 / (4 + x2)) / (2. + x2)), x2)
-        x2 = jnp.where( r < 109., s2 - jnp.log(M_2PI * x2) + 2 * jnp.log1p(-(1 - (1 - 5 / (6 + x2)) / (4. + x2)) / (2. + x2)), x2)
-        x2 = jnp.where( r < 55., s2 - jnp.log(M_2PI * x2) + 2 * jnp.log1p(-(1 - (1 - (5 - 9 / (8. + x2)) / (6. + x2)) / (4. + x2)) / (2. + x2)), x2)
-
-        val_notrge648 = jnp.sqrt(x2)
-
-    val = jnp.where(qle425, val_qle425,
-                    jnp.where (rle5, val_rle5, 
-                               jnp.where (rle27, val_rle27, rge648) ))
-
-
-    val = jnp.where( not_qle425 & (q < 0.0), -val, val )
-    
-    return mu + sigma * val
 
 
 SQRT_PI_8 = jnp.sqrt(jnp.pi/8.)
@@ -723,8 +501,6 @@ def qnorm_acklam(log_p):
     # Rational approximation for upper region:
     if jnp.log(phigh) < log_p:
        log_1mp =  jnp.log(1-jnp.exp(log_p))
-       #ones = jnp.ones_like(log_p)
-       #log_1mp = jax.scipy.special.logsumexp (jnp.stack([jnp.zeros_like(log_p),log_p]), axis = 0, b = jnp.stack([ones , -ones]))
 
        q  = jnp.sqrt(-2*log_1mp)
        return -(((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5]) / \
@@ -740,46 +516,29 @@ def qnorm_acklam(log_p):
 def qnorm_trick(log_p):
     right = -jax.scipy.stats.norm.ppf(-log_p)
     left =  qnorm5(log_p, 0., 1., True, True)
-    #left = jax.scipy.stats.norm.ppf(jnp.exp(log_p))
     return jnp.where(jnp.isinf(right), left, right)
 
 
 
 
-
-# def inv_normcdf(log_p):
-#     return oryx.core.inverse(normcdf)(log_p) # not implemented
-#     #return distrax.Inverse(normcdf)(log_p)
-
-if True:
+if False: ## some checks
     from jax import config
     config.update("jax_enable_x64", True)
 
 
 
     from functools import partial
-    #qnorm = partial(qnorm5, mu=0., sigma=1., lower_tail=True, log_p=True)
-    #qnorm = partial(bad_qnorm5, mu=0., sigma=1., lower_tail=True, log_p=True)
-    #qnorm = qnorm_acklam
-    #qnorm = bad_qnorm5
-    #qnorm=inv_normcdf
     qnorm = qnorm_trick
     
     import numpy as np
-
-
-    #print(qnorm(jnp.array(-1e-25)))
 
 
     if True:
         for p in [.1,.2,.3,.4,.5,.6,.7,.8,.9]: 
             lp = jnp.log(p)
             print(lp, nontraced_qnorm5(lp, mu=0., sigma=1., lower_tail=True, log_p=True))
-            #print(lp, qnorm(jnp.array(lp)))
-            #print(lp, qnorm(lp))
 
         log_p = -np.logspace(308,-323, 20)
-        #print(log_p," ", (log_p))
         print("old: ")
 
         for lp  in log_p:
@@ -795,11 +554,7 @@ if True:
         for r in res:
            print(r)
 
-        #for lp in log_p:
-        #    print(qnorm(lp))
-
 
         print(qnorm(jnp.array(lplast)))
-        #print(qnorm(lplast))
 
 

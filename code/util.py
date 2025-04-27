@@ -536,7 +536,8 @@ def load_data(dataset, split, data_folder, n, normalize_x):
 
         #image = Image.open("dgp3.png").convert('L')
         #image = Image.open("dgp10.png").convert('L')
-        image = Image.open("beta.png").convert('L')
+        imgpth = os.path.join(os.path.dirname(__file__),"beta.png")
+        image = Image.open(imgpth).convert('L')
 
         #prop = 0.15
         #image = image.resize( [int(prop * s) for s in image.size] )

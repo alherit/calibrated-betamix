@@ -1,12 +1,33 @@
+# adapted from https://github.com/freelunchtheorem/Conditional_Density_Estimation
+# MIT License
+
+# Copyright (c) 2017 Jonas Rothfuss
+
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
 from urllib.request import urlretrieve
 import os
 import pandas as pd
 import numpy as np
 from datetime import datetime
 
-#DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../data'))
-DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../data'))
-
+DATA_DIR = None 
 
 UCI_DATASETS = []
 
@@ -38,7 +59,7 @@ class Dataset:
         urlretrieve(self.download_url, self.data_file_path)
 
     def get_df(self):
-        if self.needs_download:
+        if False: #self.needs_download:
             self.download_dataset()
         df = pd.read_csv(self.data_file_path)
         return self._process_df(df)
@@ -91,53 +112,6 @@ class Dataset:
         return "%s (ndim_x = %i, ndim_y = %i)"%(str(self.__class__.__name__), self.ndim_x, self.ndim_y)
 
 
-class EuroStoxx50(Dataset):
-
-    ndim_x = 14
-    ndim_y = 1
-
-    target_columns = ['log_ret_1']
-    feature_columns = ['log_ret_last_period', 'log_risk_free_1d',
-       'RealizedVariation', 'bakshiSkew', 'bakshiKurt', 'SVIX', 'Mkt-RF',
-       'SMB', 'HML', 'WML', 'WML_risk_10d', 'Mkt-RF_risk_10d', 'SMB_risk_10d',
-       'HML_risk_10d']
-
-    data_file_name = 'eurostoxx50.csv'
-
-    def get_train_valid_splits(self, valid_portion, n_splits, shift_size=100, shuffle=False, random_state=None):
-        # needs extra treatment since it's time-series data --> shifts train and valid set by shift_size each split
-        # --> ensures that the valid data is always in the future of the train data
-
-        assert shuffle is False
-
-        X, Y = self.get_target_feature_split()
-
-        n_instances = X.shape[0]
-        valid_size = int(valid_portion * n_instances)
-        training_size = n_instances - valid_size - n_splits*shift_size
-        assert valid_size * n_splits <= n_instances
-
-        idx = np.arange(n_instances)
-
-        X_trains, Y_trains, X_valids, Y_valids = [], [], [], []
-
-        for i in reversed(range(n_splits)):
-            idx_train_start = int(i * shift_size)
-            idx_valid_start = idx_train_start + training_size
-            idx_valid_end = idx_valid_start + valid_size
-
-            idx_train, idx_valid = idx[idx_train_start:idx_valid_start], idx[idx_valid_start:idx_valid_end]
-
-
-            X_trains.append(X[idx_train, :])
-            Y_trains.append(Y[idx_train, :])
-            X_valids.append(X[idx_valid, :])
-            Y_valids.append(Y[idx_valid, :])
-
-        return X_trains, Y_trains, X_valids, Y_valids
-
-    def download_dataset(self):
-        raise AssertionError("Sry, the EuroStoxx 50 data is proprietary and won't be open-sourced")
 
 class NCYTaxiDropoffPredict(Dataset):
 
@@ -145,7 +119,7 @@ class NCYTaxiDropoffPredict(Dataset):
     ndim_y = 2
 
     data_file_name = 'yellow_tripdata_2016-01.csv'
-    data_file_name_processed = 'yellow_tipdata_2016-01_processed.csv'
+    data_file_name_processed = 'yellow_tripdata_2016-01_processed.csv'
     download_url = 'https://s3.amazonaws.com/nyc-tlc/trip+data/yellow_tripdata_2016-01.csv'
 
     target_columns = ['dropoff_loc_lat', 'dropoff_loc_lon']
@@ -159,9 +133,12 @@ class NCYTaxiDropoffPredict(Dataset):
     max_duration = 3 * 3600
 
     def __init__(self, data_folder, n_samples=10**4, seed=22):
+        global DATA_DIR
         self.data_folder = data_folder
         self.n_samples = n_samples
         self.random_state = np.random.RandomState(seed)
+        DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), data_folder))
+
 
     def get_df(self):
         try:
@@ -181,7 +158,8 @@ class NCYTaxiDropoffPredict(Dataset):
         except:
             open_file = open
 
-            data_file_path_processed = os.path.join(self.data_folder, self.data_file_name_processed)
+            #data_file_path_processed = os.path.join(self.data_folder, self.data_file_name_processed)
+            data_file_path_processed = os.path.join(DATA_DIR, self.data_file_name_processed)
             if not os.path.isfile(data_file_path_processed):
                 df = super(NCYTaxiDropoffPredict, self).get_df().dropna()
                 print("save processed NYC data as csv to %s" % data_file_path_processed)
@@ -265,133 +243,6 @@ class NCYTaxiDropoffPredict(Dataset):
     def __str__(self):
         return "%s (n_samples = %i, ndim_x = %i, ndim_y = %i)" % (str(self.__class__.__name__), self.n_samples, self.ndim_x, self.ndim_y)
 
-class UCI_Dataset(Dataset):
-    uci_base_url = 'https://archive.ics.uci.edu/ml/machine-learning-databases/'
-    uci_data_path = ''
-
-    @property
-    def download_url(self):
-        return os.path.join(self.uci_base_url, self.uci_data_path)
-
-    @property
-    def target_columns(self):
-        return [self.get_df().columns[-1]]
-
-    @property
-    def feature_columns(self):
-        return list(self.get_df().columns[:-1])
-
-@_UCI
-class BostonHousing(UCI_Dataset):
-    uci_data_path = 'housing/housing.data'
-    data_file_name = 'housing.data'
-
-    ndim_x = 13
-    ndim_y = 1
-
-    def get_df(self):
-        if self.needs_download:
-            self.download_dataset()
-        df = pd.read_fwf(self.data_file_path, header=None)
-        return df
-
-@_UCI
-class Conrete(UCI_Dataset):
-    uci_data_path = 'concrete/compressive/Concrete_Data.xls'
-    data_file_name = 'concrete.xls'
-
-    ndim_y = 1
-    ndim_x = 8
-
-    def get_df(self):
-        if self.needs_download:
-            self.download_dataset()
-        df = pd.read_excel(self.data_file_path).dropna()
-        return df
-
-@_UCI
-class Energy(UCI_Dataset):
-    uci_data_path ='00242/ENB2012_data.xlsx'
-    data_file_name = 'energy.xlsx'
-
-    ndim_x = 9
-    ndim_y = 1
-
-    def get_df(self):
-        if self.needs_download:
-            self.download_dataset()
-        df = pd.read_excel(self.data_file_path).dropna()
-        return df
-
-@_UCI
-class Power(UCI_Dataset):
-    download_url = 'https://www.dropbox.com/s/w7qkzjtuynwxjke/power.csv?dl=1'
-    data_file_name = 'power.csv'
-
-    ndim_x = 4
-    ndim_y = 1
-
-    def get_df(self):
-        if self.needs_download:
-            self.download_dataset()
-        df = pd.read_csv(self.data_file_path).dropna()
-        return df
-
-@_UCI
-class Protein(UCI_Dataset):
-    uci_data_path = '00265/CASP.csv'
-    data_file_name = 'protein.csv'
-
-    ndim_x = 9
-    ndim_y = 1
-
-    def get_df(self):
-        if self.needs_download:
-            self.download_dataset()
-        df = pd.read_csv(self.data_file_path).dropna()
-        return df
-
-@_UCI
-class WineRed(UCI_Dataset):
-    uci_data_path = 'wine-quality/winequality-red.csv'
-    data_file_name = 'wine_red.csv'
-
-    ndim_x = 11
-    ndim_y = 1
-
-    def get_df(self):
-        if self.needs_download:
-            self.download_dataset()
-        df = pd.read_csv(self.data_file_path, delimiter=';').dropna()
-        return df
-
-@_UCI
-class WineWhite(UCI_Dataset):
-    uci_data_path = 'wine-quality/winequality-white.csv'
-    data_file_name = 'wine_white.csv'
-
-    ndim_x = 11
-    ndim_y = 1
-
-    def get_df(self):
-        if self.needs_download:
-            self.download_dataset()
-        df = pd.read_csv(self.data_file_path, delimiter=';').dropna()
-        return df
-
-@_UCI
-class Yacht(UCI_Dataset):
-    uci_data_path = '00243/yacht_hydrodynamics.data'
-    data_file_name = 'yacht.data'
-
-    ndim_x = 6
-    ndim_y = 1
-
-    def get_df(self):
-        if self.needs_download:
-            self.download_dataset()
-        df = pd.read_fwf(self.data_file_path, header=None).dropna()
-        return df
 
 
 """ helper methods """
@@ -414,10 +265,3 @@ def _process_time(pickup_datetime, dropoff_datetime):
 
   return [pickup_day_of_week, pickup_time_of_day, dropoff_day_of_week, dropoff_time_of_day, duration]
 
-
-if __name__ == "__main__":
-    for dataset_class in [EuroStoxx50, NCYTaxiDropoffPredict] + UCI_DATASETS:
-        dataset = dataset_class()
-        _, Y = dataset.get_target_feature_split()
-        n_samples = Y.shape[0]
-        print("%s: n_samples = %i, ndim_x = %i, ndim_y = %i"%(str(dataset.__class__.__name__), n_samples, dataset.ndim_x, dataset.ndim_y))

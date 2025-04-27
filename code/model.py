@@ -27,6 +27,9 @@ from scipy import stats as scipy_stats
 
 from util import savefigs
 
+from mydense import MyDense
+
+
 
 #from einops import einsum
 
@@ -340,16 +343,16 @@ def build_pred_logits(activation, prior_sigma, nodes, hidden_layers, output_size
         activ = activation[0].upper() + activation[1:]
         
         # this matches perfectly my formula when taking kernel_fn for taxi dataset (6 inputs)
-        #layers = [stax.Dense(nodes, W_std= prior_sigma * np.sqrt(6) , b_std= prior_sigma , parameterization='standard'),eval("stax." + activ)() ]*layers + [ stax.Dense(1, W_std= prior_sigma * np.sqrt(nodes), b_std= prior_sigma  , parameterization='standard')]
+        #layers = [MyDense(nodes, W_std= prior_sigma * np.sqrt(6) , b_std= prior_sigma , parameterization='standard'),eval("stax." + activ)() ]*layers + [ MyDense(1, W_std= prior_sigma * np.sqrt(nodes), b_std= prior_sigma  , parameterization='standard')]
         
         
         if parameterization == 'standard_custom':
             parameterization = 'standard'
-            layers = [stax.Dense(nodes, W_std= prior_sigma*jnp.sqrt(input_size)  , b_std= prior_sigma , parameterization=parameterization),eval("stax." + activ)() ]
-            layers += [stax.Dense(nodes, W_std= prior_sigma*jnp.sqrt(nodes)  , b_std= prior_sigma , parameterization=parameterization),eval("stax." + activ)() ]*(hidden_layers-1) 
-            layers += [ stax.Dense(output_size, W_std= prior_sigma*jnp.sqrt(nodes), b_std= prior_sigma  , parameterization=parameterization)]
+            layers = [MyDense(nodes, W_std= prior_sigma*jnp.sqrt(input_size)  , b_std= prior_sigma , parameterization=parameterization),eval("stax." + activ)() ]
+            layers += [MyDense(nodes, W_std= prior_sigma*jnp.sqrt(nodes)  , b_std= prior_sigma , parameterization=parameterization),eval("stax." + activ)() ]*(hidden_layers-1) 
+            layers += [ MyDense(output_size, W_std= prior_sigma*jnp.sqrt(nodes), b_std= prior_sigma  , parameterization=parameterization)]
         else:
-            layers = [stax.Dense(nodes, W_std= prior_sigma  , b_std= prior_sigma , parameterization=parameterization),eval("stax." + activ)() ]*hidden_layers + [ stax.Dense(output_size, W_std= prior_sigma, b_std= prior_sigma  , parameterization=parameterization)]
+            layers = [MyDense(nodes, W_std= prior_sigma  , b_std= prior_sigma , parameterization=parameterization),eval("stax." + activ)() ]*hidden_layers + [ MyDense(output_size, W_std= prior_sigma, b_std= prior_sigma  , parameterization=parameterization)]
 
         init_fn, apply_fn, kernel_fn = stax.serial(*layers)
 
@@ -868,11 +871,11 @@ def  build_modelD(Y_train, n_squeeze, input_size, activation, hidden_layers, nod
 
             if parameterization == 'standard_custom':
                 param = 'standard'
-                layers = [stax.Dense(nodes, W_std= prior_sigma*jnp.sqrt(D)  , b_std= prior_sigma , parameterization=param),eval("stax." + activ)() ]
-                layers += [stax.Dense(nodes, W_std= prior_sigma*jnp.sqrt(nodes)  , b_std= prior_sigma , parameterization=param),eval("stax." + activ)() ]*(hidden_layers-1) 
-                layers += [stax.Dense(D, W_std= prior_sigma*jnp.sqrt(nodes), b_std= prior_sigma  , parameterization=param)]
+                layers = [MyDense(nodes, W_std= prior_sigma*jnp.sqrt(D)  , b_std= prior_sigma , parameterization=param),eval("stax." + activ)() ]
+                layers += [MyDense(nodes, W_std= prior_sigma*jnp.sqrt(nodes)  , b_std= prior_sigma , parameterization=param),eval("stax." + activ)() ]*(hidden_layers-1) 
+                layers += [MyDense(D, W_std= prior_sigma*jnp.sqrt(nodes), b_std= prior_sigma  , parameterization=param)]
             else:
-                layers = [stax.Dense(nodes, W_std= prior_sigma  , b_std= prior_sigma , parameterization=param),eval("stax." + activ)() ]*hidden_layers + [ stax.Dense(D, W_std= prior_sigma, b_std= prior_sigma  , parameterization=param)]
+                layers = [MyDense(nodes, W_std= prior_sigma  , b_std= prior_sigma , parameterization=param),eval("stax." + activ)() ]*hidden_layers + [ MyDense(D, W_std= prior_sigma, b_std= prior_sigma  , parameterization=param)]
 
             #output in [0,1]^D
             layers += [stax.Sigmoid_like()]
