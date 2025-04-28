@@ -26,7 +26,7 @@ Please set the following variables accordingly:
 	import numpy as np
 	import os
 
-	for SCALE in [1 ]:# ,100,10000]:
+	for SCALE in [1,100,10000]:
 		for DATASET in DATASETS:
 			splits = int(np.loadtxt(DATA_FOLDER + "/" + DATASET + "/data/n_splits.txt"))
 			
