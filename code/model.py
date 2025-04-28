@@ -145,117 +145,6 @@ def train_gaussmix_squeeze(Y_train, n_components):
     return ccdf_squeeze, logpdf_unsqueeze, gm.score_samples
 
 
-def train_gaussmix_squeeze_old(Y_train, n_components):
-    gm = GaussianMixture(n_components=n_components, random_state=0, n_init=10, max_iter=10000).fit(Y_train)
-
-    def logdens_gaussmix_1(y, mus, covs, logweights): #, coord=0):
-        assert len(y.shape)==1 ##one column y element
-        # get marginal distribution for coord
-        #mus = mus[:,coord] 
-        #sigmas = jnp.sqrt(covs[:,coord, coord])
-        sigmas = jnp.sqrt(covs)
-
-        logdens = jax.scipy.stats.norm.logpdf(y,mus,sigmas)
-        logweightdens = logdens + logweights
-
-        ll = jax.scipy.special.logsumexp(logweightdens)
-
-        return ll
-
-
-    def cdf_gaussmix_1(y, mus, covs, weights):#, coord=0):
-        assert len(y.shape)==2 
-        # get marginal distribution for coord
-        #mus = mus[:,coord] 
-        #sigmas = jnp.sqrt(covs[:,coord, coord])
-        sigmas = jnp.sqrt(covs)
-
-        cdf = jax.scipy.stats.norm.cdf(y,mus,sigmas)
-
-        if len(weights.shape)>0:
-            return jnp.expand_dims(cdf @ weights, axis=1) # return column vector
-        else:
-            return cdf
-
-    def logdens_gaussmix(y, coord, mus, covs, logweights):
-        if coord is None: #unsqueeze all coordinates
-            covs = vmap(jnp.diag,0)(covs)
-            logdens = jnp.squeeze(vmap(logdens_gaussmix_1,(0,1,1,None))(jnp.expand_dims(y,1), mus, covs, logweights))
-            return jnp.sum(logdens)
-        else:
-            return logdens_gaussmix_1(y, mus[:,coord], covs[:,coord,coord], logweights)
-
-    def cdf_gaussmix(y, coord, mus, covs, weights): 
-        if coord is None: #squeeze all coordinates
-            #for projections I need only the diagonal of the cov
-            covs = vmap(jnp.diag,0)(covs)
-            #return jnp.squeeze(vmap(cdf_gaussmix_1,(1,1,1,None), out_axes=1)(jnp.expand_dims(y,2), mus, covs, weights))
-            return vmap(cdf_gaussmix_1,(1,1,1,None), out_axes=1)(jnp.expand_dims(y,2), mus, covs, weights) #vmap over covariates
-        else:
-            return cdf_gaussmix_1(y, mus[:,coord], covs[:,coord,coord], weights)
-
-
-
-    # def cdf_gaussmix1(y, mus, sigmas, weights):
-    #     assert len(y.shape)==1 
-    #     cdf = jax.scipy.stats.norm.cdf(y,mus,sigmas)
-
-    #     if len(weights.shape)>0:
-    #         return jnp.expand_dims(cdf @ weights, axis=0) # return column vector
-    #     else:
-    #         return cdf
-
-
-    logpdf_unsqueeze = partial(logdens_gaussmix, mus=gm.means_, covs=gm.covariances_, logweights=jnp.log(gm.weights_))  ## needs to be applied to the original y , not to the squeezed_y !!!
-    #equivalent to: gm.score_samples
-
-
-
-    cdf_gaussmix = partial(cdf_gaussmix, mus=gm.means_, covs=gm.covariances_, weights=gm.weights_)
-    #cdf_gaussmix1 = partial(cdf_gaussmix1, mus=mus, sigmas=sigmas, weights=weights)
-
-    for j in range(Y_train.shape[1]): #debug
-        y_tr = Y_train[:,j]
-        points_plus_one = 200
-        y_max = jnp.max(y_tr)
-        y_min = jnp.min(y_tr)
-        step = (y_max-y_min)/points_plus_one
-
-        ys = np.arange(y_min+step/2, y_max-step/2, step)
-
-        ps = jnp.exp(vmap(logpdf_unsqueeze, (0,None))(np.expand_dims(ys,1), j))
-        plt.plot(ys,ps, color='r')
-        
-        dist_name = "norm"
-        dist = eval("scipy_stats." + dist_name)
-        jax_dist = eval("jax.scipy.stats." + dist_name)
-        loc, scale = dist.fit(y_tr)
-        logpdf_unsqueeze1 = partial(jax_dist.logpdf,loc=loc,scale=scale)
-        ps1 = jnp.exp(vmap(logpdf_unsqueeze1)(ys))
-        plt.plot(ys,ps1, color='b')
-        ##plt.show()
-
-
-
-        cs = cdf_gaussmix(jnp.expand_dims(ys, 1), coord=j)
-        #cs = vmap(cdf_gaussmix1,0)(jnp.expand_dims(ys, 1))
-        plt.plot(ys,cs, color='r')
-        
-        cdf1 = partial(jax_dist.cdf,loc=loc,scale=scale)
-        cs1 = vmap(cdf1)(ys)
-        plt.plot(ys,cs1, color='b')
-        #plt.show()
-
-        plt.hist(jnp.squeeze(y_tr), bins=100, density=True)
-
-        fname= "squeezing%i" %j
-        savefigs(fname) #, bbox_inches='tight')
-        #plt.close()
-        #mlflow.log_artifact(fname)
-        #   os.remove(fname) #don't leave garbage
-
-    return cdf_gaussmix, logpdf_unsqueeze, gm.score_samples
-
 
 from jax import random
 
@@ -332,7 +221,6 @@ from sympy import Integer, Matrix
 
 
 
-#STAX = True
 def build_pred_logits(activation, prior_sigma, nodes, hidden_layers, output_size, input_size, STAX, parameterization, with_scaling=True):
 
     if STAX:
@@ -396,10 +284,6 @@ def build_pred_logits(activation, prior_sigma, nodes, hidden_layers, output_size
             logits_before = jnp.squeeze(logits_before)
 
         if STAX:
-
-            #xx = jnp.expand_dims(x,0)
-            #kernel_fn = neural_tangents.empirical_kernel_fn(pred_logits )
-            #kernel = kernel_fn(xx, None, 'nngp', params)
             kernel = kernel_fn(x, x, 'nngp')
             scale_true = jnp.sqrt(jnp.diag(kernel))
 
@@ -452,15 +336,9 @@ def get_L_bridge_dirichlet(N, alpha_weights):
     return L
 
 def norm_to_logdirichlet(logits, L):
-    if False: ## test for rebuttal
-        logweights = jax.nn.log_softmax(logits)
-    elif False: # this ignores non-diagonal elements
-        logweights = nn.log_softmax(logits * jnp.sqrt((N-1)/(alpha_weights * N)))
-    else:
-        logweights = jax.nn.log_softmax(L@logits)
+    logweights = jax.nn.log_softmax(L@logits)
     return logweights
 
-#EXP_SCALE = True
 
 def norm_to_ab(logits_s,inv_lambda, logits_l, alpha_quant, L= None):
     if True:
@@ -595,22 +473,11 @@ def build_model1(Y_train, n_squeeze, input_size, activation, layers, nodes, n_se
     def loglikelihood(params, X, y):
 
         y_squeezed = jnp.squeeze(cdf_squeeze(jnp.expand_dims(y,0), coord=0))
-        #y_squeezed2 = jnp.squeeze(cdf_gaussmix1(y))
-        #jax.debug.print("diff {diff} ", diff=y_squeezed-y_squeezed2)
 
         dist = predict(params, X)
 
-        if False:
-            logdens = jax.scipy.stats.beta.logpdf(y_squeezed,dist.alphas,dist.betas)
-            logweightdens = logdens + dist.logweights
-
-            # ll = jnp.log(jnp.sum(jnp.exp(logweightdens)))
-            ll = jax.scipy.special.logsumexp(logweightdens)
-            
-
-        else:
+        if True:
             ll = logDens(y_squeezed, dist)
-        #jax.debug.print("ll {ll} ll2 {ll2} ", ll=ll, ll2=ll2)
 
         if True: #UNSQUEEZE:
             logpdf_y = logpdf_unsqueeze(y, coord=0)
@@ -658,7 +525,6 @@ from numpyro.distributions.util import (
 )
 
 
-### THIS commented BLOCK faisl on AZURE but works on local 
 
 from oryx.core import inverse_and_ildj
 from oryx.core import custom_inverse
@@ -835,11 +701,6 @@ def  build_gaussian_modelD(with_scaling, Y_train, n_squeeze, input_size, activat
 
 
 
-
-    return predict, predict_with_probits, params_structure,cdf_squeeze, logpdf_unsqueeze, logdens_gaussmix_multivariate, loglikelihood, logDens, mix_preds_betamix, log_dens_uncorr, init_fn, init_fns, get_outputs_from_last_hidden
-
-
-
 def  build_modelD(Y_train, n_squeeze, input_size, activation, hidden_layers, nodes, N, prior_sigma, prior_alpha_weights, prior_scale_ab, prior_corr_concentration, alpha_quant, STAX, parameterization, COPULA=True, bridgebetas=True, sorted_locations=False, lkj="onion", logbetacdf_N=1000, CHOLCORR=True, SQUEEZE="gaussmix", mean_y=None, std_y=None):
 
     D = Y_train.shape[1]
@@ -863,38 +724,8 @@ def  build_modelD(Y_train, n_squeeze, input_size, activation, hidden_layers, nod
     elif SQUEEZE=="nn":
         #overwrite squeeze/unsqueeze
 
-        if False:
-            from neural_tangents import stax
-            #from jax.example_libraries import stax
 
-            activ = activation[0].upper() + activation[1:]
-
-            if parameterization == 'standard_custom':
-                param = 'standard'
-                layers = [MyDense(nodes, W_std= prior_sigma*jnp.sqrt(D)  , b_std= prior_sigma , parameterization=param),eval("stax." + activ)() ]
-                layers += [MyDense(nodes, W_std= prior_sigma*jnp.sqrt(nodes)  , b_std= prior_sigma , parameterization=param),eval("stax." + activ)() ]*(hidden_layers-1) 
-                layers += [MyDense(D, W_std= prior_sigma*jnp.sqrt(nodes), b_std= prior_sigma  , parameterization=param)]
-            else:
-                layers = [MyDense(nodes, W_std= prior_sigma  , b_std= prior_sigma , parameterization=param),eval("stax." + activ)() ]*hidden_layers + [ MyDense(D, W_std= prior_sigma, b_std= prior_sigma  , parameterization=param)]
-
-            #output in [0,1]^D
-            layers += [stax.Sigmoid_like()]
-
-            init_diffeo, apply_diffeo, _ = stax.serial(*layers)
-
-
-            def cdf_squeeze_diffeo(y, params):
-                y_linear_squeezed = (y - min_y)/(max_y - min_y)
-                return apply_diffeo(params,y_linear_squeezed)
-            
-            def logpdf_unsqueeze_diffeo(y, params):
-                linear_unsqueeze = jnp.sum(-jnp.log(max_y - min_y), axis=0)
-                return linear_unsqueeze + jnp.linalg.slogdet(jax.jacobian(apply_diffeo,1)(params,y))[1]  # take jacobian wrt y
-
-            cdf_squeeze = cdf_squeeze_diffeo
-            logpdf_unsqueeze = logpdf_unsqueeze_diffeo
-
-        else:
+        if True:
 
             # Make f(z) invertible by combining params and forward.apply.
             f_inv_and_ildj = inverse_and_ildj(lambda p, z: [p, forward.apply(p, z)])
@@ -961,55 +792,12 @@ def  build_modelD(Y_train, n_squeeze, input_size, activation, hidden_layers, nod
         corr = Dinv @ cov @ Dinv
         return corr
 
-    def to_corr_wishart(logits_cov, dimension, concentration=1.):
-        if True: ## parameter of the prior, just take Identity
-            G = logits_cov
-        else:
-            V = jnp.eye(D) ## parameter of the prior, just take Identity
-            B = jnp.linalg.cholesky(V) 
-            G = B@logits_cov
-        cov = G@ jnp.transpose(G,(1,0))
-        
-        if False:
-            corr = cov_to_corr(cov) 
-        
-        else: # Maurizio's suggestion
-            Dinv = jnp.diag(1 / jnp.sqrt(jnp.diag(cov))) 
-            normG = (Dinv @ G) 
-            corr = normG @ jnp.transpose(normG,(1,0))
-
-        return corr
 
     def to_corr_gram(logits_cov): #Random Gram Method
         safe_normalize_columns = vmap(jax._src.scipy.sparse.linalg._safe_normalize, in_axes=1, out_axes=(1,0)) # for one matrix m x n, normalize columns
         u,_ = safe_normalize_columns(logits_cov)  # random points on the unit sphere
         corr = u.T @ u
         return corr
-
-
-    # equivalent to tfp: 
-    def to_gram_cholcorr(probits): 
-        normal_sample = tfp.math.fill_triangular(probits) # looks equivalent
-
-        cholesky = jnp.zeros((D,D))
-        cholesky = cholesky.at[..., 1:, :-1].set(normal_sample)
-
-        cholesky = cholesky + jnp.identity(cholesky.shape[0])
-
-
-        # The following Normal distribution is used to create a uniform distribution on
-        # a hypershere (ref: http://mathworld.wolfram.com/HyperspherePointPicking.html)
-        cholesky /= jnp.linalg.norm(cholesky, axis=-1, keepdims=True)  # dangerous => replace by safe_norm
-
-        #safe_normalize_rows = vmap(jax._src.scipy.sparse.linalg._safe_normalize) # for one matrix m x n, normalize rows
-        #u_hypershere,_ = safe_normalize_rows(normal_sample)  # random points on the unit sphere
-
-        # correct the diagonal
-        # NB: we clip due to numerical precision
-        #diag = jnp.sqrt(jnp.clip(1 - jnp.sum(cholesky ** 2, axis=-1), a_min=0.))
-        #cholesky = cholesky + jnp.expand_dims(diag, axis=-1) * jnp.identity(cholesky.shape[0])
-
-        return cholesky
 
 
     def to_cholcorr(probits, dimension, concentration=1.): 
@@ -1035,6 +823,7 @@ def  build_modelD(Y_train, n_squeeze, input_size, activation, hidden_layers, nod
 
 
     #CVINE adapted from numpyro
+    #Apache License 2.0
     def to_LKJCholesky_cvine(probits, dimension, concentration=1.):
 
         # We construct base distributions to generate samples for each method.
@@ -1072,6 +861,7 @@ def  build_modelD(Y_train, n_squeeze, input_size, activation, hidden_layers, nod
 
 
     # ONION: adapted from numpyro
+    # Apache License 2.0
     def to_LKJCholesky_onion(probits, dimension, concentration=1.):
 
         # We construct base distributions to generate samples for each method.
@@ -1119,18 +909,7 @@ def  build_modelD(Y_train, n_squeeze, input_size, activation, hidden_layers, nod
 
         w = jnp.expand_dims(jnp.sqrt(beta_sample), axis=-1) * u_hypershere
 
-        if False:
-            # put w into the off-diagonal triangular part
-            cholesky = jnp.zeros((dimension,dimension))
-            cholesky = cholesky.at[..., 1:, :-1].set(w)
-            # equivalent
-            #cholesky = jnp.concatenate([jnp.concatenate([jnp.zeros((1,Dm1)),w]),jnp.zeros((dimension,1))],axis=1)
-
-            # correct the diagonal
-            # NB: we clip due to numerical precision
-            diag = jnp.sqrt(jnp.clip(1 - jnp.sum(cholesky ** 2, axis=-1), a_min=0.))
-            cholesky = cholesky + jnp.expand_dims(diag, axis=-1) * jnp.identity(dimension)
-        else:
+        if True:
             # put w into the off-diagonal triangular part
             cholesky = jnp.zeros((dimension,dimension))
             cholesky = cholesky.at[..., 1:, :-1].set(w)
@@ -1178,7 +957,6 @@ def  build_modelD(Y_train, n_squeeze, input_size, activation, hidden_layers, nod
         ## DISTRIBUTION TRANSFORMATION
         if CHOLCORR:
             corr = vmap(to_LKJCholesky, (0,None))(logits_cov, D)
-            #corr = vmap(to_gram_cholcorr)(logits_cov)
         else:
             corr = vmap(to_corr_gram)(logits_cov)
 
@@ -1224,16 +1002,12 @@ def  build_modelD(Y_train, n_squeeze, input_size, activation, hidden_layers, nod
 
                 NO_APPROX = False
                 if NO_APPROX: #Nans
-                    #u = jax.scipy.stats.beta.cdf(y, dist.alphas, dist.betas) #gradients not implemented
-                    #u = jax.lax.betainc(dist.alphas, dist.betas, y) #same problem, gradients not implemented
-                    #u = tf.math.betainc(dist.alphas, dist.betas, y)
 
                     u = tfp.math.betainc(dist.alphas, dist.betas, y) ## if alphas and betas are big, can give 0 1 values then z is inf and nans later 
                     #log_u = jnp.log(u)
                     z = jax.scipy.stats.norm.ppf(u)
 
                 else: #rectangle rule approximation to get log
-                    #log_u_trap = vmap(log_beta_cdf_trap)(y, dist.alphas, dist.betas)
 
                     try:
                         log_beta_cdf_rect_N = partial(log_beta_cdf_rect,N=logbetacdf_N)
@@ -1244,89 +1018,44 @@ def  build_modelD(Y_train, n_squeeze, input_size, activation, hidden_layers, nod
                     
                     log_u = jnp.where(log_u_rect>=0.,-1e-10,log_u_rect)
                 
-
-                    #log_u = jnp.minimum(log_u_trap, log_u_rect)
-                    #log_u = jnp.where(log_u_rect>=0.,-jnp.finfo(float).smallest_normal,log_u_rect)
-                    
-                    #log_u = vmap(logpbeta)(y, dist.alphas, dist.betas) ## doesnt work
-
-                    #u = y
-                    #jax.debug.print("log_u_trap {log_u_trap} log_u_rect {log_u_rect} ", log_u_trap=log_u_trap, log_u_rect=log_u_rect)
-                    #z = jax.scipy.stats.norm.ppf(jnp.exp(log_u))
-
                     try: 
                         z = qnorm5(log_u, mu=0., sigma=1., lower_tail=True, log_p=True)
-                        #z = qnorm_trick(log_u) #### THIS INTRODUCES THE WEIRD "FOLDING" ARTIFACTS
                     except FloatingPointError:
                         jax.debug.print("log_u {log_u} ", log_u=log_u)
                         exit() 
 
-                    #z = qnorm_logit(log_u)
-                    #jax.debug.print("z {z} z2 {z2}", z=z, z2=z2)
-                    #jax.debug.print("y {y} alpha {alpha} beta {beta} log_u {log_u} log_of_u {log_of_u} z {z} z_scipy_exp_log_u {z_scipy}",y=y, log_u=log_u, log_of_u=jnp.log(u), z=z, z_scipy=z_scipy, alpha=dist.alphas, beta=dist.betas)
-                    #jax.debug.print("y {y} alpha {alpha} beta {beta} log_u {log_u} z {z}",y=y, log_u=log_u,  z=z, alpha=dist.alphas, beta=dist.betas)
                 
-
-
-
-                #copula = 1./jnp.sqrt(jnp.linalg.det(dist.corr)) * jnp.exp(-.5 * z @ (jnp.linalg.inv(dist.corr)-jnp.eye(N=dist.corr.shape[0])) @ z )
-
-
-                if False:
-                    inv_corr = jnp.linalg.inv(dist.corr)
-                    quad_form = z @ (inv_corr-jnp.eye(N=dist.corr.shape[0])) @ z
-                    #quad_form2 = z @ inv_corr @ z  - z @ z
-
-                    #jax.debug.print("diff_inv {diff} ", diff=inv_L - jnp.linalg.inv(L))      
-                
-                else:
+                if True:
 
                     try:
-                        #L = icholesky(dist.corr, lower=True)
                         if CHOLCORR:
                             L = dist.corr ## dist.corr in cholesky space already
                         else:
-                            #L = jnp.linalg.cholesky(dist.corr)
                             L = icholesky(dist.corr, lower=True)
 
                     except FloatingPointError:
                         jax.debug.print("corr {corr} ", corr=dist.corr)
                         exit()
-                    #inv_L2 = jax.scipy.linalg.solve_triangular(L2, jnp.identity(L2.shape[1]), lower=True)
+
                     inv_L = jax.scipy.linalg.solve_triangular(L, jnp.identity(L.shape[1]), lower=True)
-
-
-                    #jax.debug.print("inv_L {inv_L} L {L}", inv_L=inv_L, L=L)      
 
                     try:
                         quad_form = jnp.linalg.norm(inv_L @ z, ord=2)**2  - z @ z
                     except FloatingPointError:
                         jax.debug.print("inv_L {inv_L} z {z}", inv_L=inv_L, z=z)
                         exit()
-                #jax.debug.print("diff {diff} ", diff=quad_form - quad_form)      
-
-                #
-
-                #jax.debug.print("diag_L {diag_L} ", diag_L=jnp.diagonal(L)) 
 
                 try:
                     
-                    #log_det_bad = jnp.linalg.slogdet(dist.corr @ dist.corr.T)[1]
                     #https://math.stackexchange.com/questions/3158303/using-cholesky-decomposition-to-compute-covariance-matrix-determinant
                     log_det = 2. * jnp.sum(jnp.log(jnp.diagonal(L)))
 
-                    #jax.debug.print("diff {diff} ", diff=log_det - log_det_bad)
 
                     log_copula = -.5 * (log_det +  quad_form )
                     
                 except FloatingPointError:
                         jax.debug.print("quad_form {quad_form} corr {corr}", quad_form=quad_form, corr=dist.corr)
                         exit()
-                #log_copula = -.5 * (jnp.log(jnp.linalg.det(dist.corr)) +  quad_form )
-
-                #jax.debug.print("diff {diff} ", diff=log_copula - log_copula2)
-                #jax.debug.print("y {y} alpha {alpha} beta {beta} log_u {log_u} z {z}  log_copula {log_copula}",y=y, log_u=log_u, z=z, alpha=dist.alphas, beta=dist.betas, log_copula=log_copula )
-                #jax.debug.print("y {y} alpha {alpha} beta {beta}  log_copula {log_copula} ", y=y, alpha=dist.alphas, beta=dist.betas, log_copula=log_copula )
 
                 return jnp.sum(jax.scipy.stats.beta.logpdf(y, dist.alphas, dist.betas), axis=0) + dist.logweights + log_copula ##sum is over D
             else: # no copula structure
@@ -1365,25 +1094,6 @@ def  build_modelD(Y_train, n_squeeze, input_size, activation, hidden_layers, nod
 
         return logdens
 
-
-
-    def loglikelihood_old(params, XorPreds, y, logDens, from_preds):
-
-        y_squeezed = jnp.squeeze(cdf_squeeze(jnp.expand_dims(y,0), coord=None),axis=(0,2))  #expand_dims to make a batch of one element  # I am not squeezing axis 1 because it's  the dimension of covariates and I want it to work for D=1
-        #y_squeezed = cdf_squeeze(jnp.expand_dims(y,0), coord=0)
-
-        if from_preds:
-            dist = XorPreds
-        else:
-            dist = predict(params, XorPreds)
-
-        ll = logDens(y_squeezed, dist)
-
-        if True: #UNSQUEEZE:
-            logpdf_y = logpdf_unsqueeze(y, coord=None)
-            ll = ll + jnp.squeeze(logpdf_y)
-
-        return ll
 
 
     def loglikelihood(params, XorPreds, y, logDens, from_preds, params_diffeo=None):

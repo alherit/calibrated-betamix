@@ -30,9 +30,6 @@ def get_loc_1(x):
 def get_loc_2(x):
     return -2*(x<0)
 
-# def get_loc_3(x):
-#     return get_loc_2(x)
-
 
 def get_scale_1(x):
     return .02
@@ -40,29 +37,22 @@ def get_scale_1(x):
 def get_scale_2(x):
     return .2
 
-# def get_scale_3(x):
-#    return get_scale_2(x)
-
 def get_y1(x):
     return get_loc_1(x) + get_scale_1(x)*np.random.normal(size=x.shape)
     
 def get_y2(x):
     return get_loc_2(x) + get_scale_2(x)*np.random.normal(size=x.shape)
 
-# def get_y3(x):
-#    return get_loc_3(x) + get_scale_3(x)*np.random.normal(size=x.shape)
-
 def get_ps_truth(x,ys):
-#    return (scipy.stats.norm.pdf(ys, get_loc_1(x),get_scale_1(x)) + scipy.stats.norm.pdf(ys, get_loc_2(x),get_scale_2(x)) + scipy.stats.norm.pdf(ys, get_loc_3(x), get_scale_3(x) )) / 3.
     return (scipy.stats.norm.pdf(ys, get_loc_1(x),get_scale_1(x)) + scipy.stats.norm.pdf(ys, get_loc_2(x),get_scale_2(x)) ) / 2.
 
 def get_all(x, s):
-#    return np.concatenate([get_y1(x[:s]),get_y2(x[s:(2*s)]), get_y3(x[(2*s):]) ])
     return np.concatenate([get_y1(x[:s]),get_y2(x[s:(2*s)]) ])
 
 
 
-"""Adapted from pymc library"""
+## Adapted from pymc library
+## PyMC is distributed under the Apache License, Version 2.0
 def gelman_rubin(x, return_var=False):
     """ Returns estimate of R for a set of traces.
 
@@ -137,6 +127,8 @@ def gelman_rubin(x, return_var=False):
     return np.sqrt(R)
 
 
+## Adapted from pymc library
+## PyMC is distributed under the Apache License, Version 2.0
 def compute_rhat_classification(samples, n_chains):
     """A wrapper function for computing R-hat statistics for regression tasks.
 
@@ -155,6 +147,8 @@ def compute_rhat_classification(samples, n_chains):
     r_hat = np.array(gelman_rubin(samples))
     return r_hat
 
+## Adapted from pymc library
+## PyMC is distributed under the Apache License, Version 2.0
 def compute_rhat_regression(samples, n_chains):
     """A wrapper function for computing R-hat statistics for regression tasks.
 
@@ -539,14 +533,8 @@ def load_data(dataset, split, data_folder, n, normalize_x):
         imgpth = os.path.join(os.path.dirname(__file__),"beta.png")
         image = Image.open(imgpth).convert('L')
 
-        #prop = 0.15
-        #image = image.resize( [int(prop * s) for s in image.size] )
-
         pixels = jnp.asarray(image)#, dtype=types.FLOAT_TYPE)
 
-        # DGP IMAGE: extend for plotting 
-        #MARGINX = 200
-        #MARGINY = 100
         MARGINX = 0
         MARGINY = 0
 
@@ -556,10 +544,6 @@ def load_data(dataset, split, data_folder, n, normalize_x):
         threshold_level = 0
         coords = jnp.column_stack(jnp.where(pixels > threshold_level))
 
-        #threshold_level = 254
-        #coords = jnp.column_stack(jnp.where(pixels < threshold_level))
-
-        
 
 
         pixels_norm = pixels #(255 - pixels)/255
@@ -572,9 +556,6 @@ def load_data(dataset, split, data_folder, n, normalize_x):
         fname="dgp_true"
         plt.matshow(pixels_w_margin, cmap='PuBu_r')
         savefigs(fname)
-        #plt.close()
-        #mlflow.log_artifact(fname)
-        #os.remove(fname) #don't leave garbage
 
 
         data = Dataset
@@ -638,17 +619,8 @@ def load_data(dataset, split, data_folder, n, normalize_x):
             data.Y_test = Y_test        
 
 
-        elif False:
-            from data import get_regression_data
-
-            ####### LOAD DATA ######
-            data = get_regression_data(dataset, split=split)
-            # THE SAME TRUNCATION IS PERFORMED in the script for DGP
-            data.X_test = data.X_test[:10000]
-            data.Y_test = data.Y_test[:10000]
-        else:
-            ####### LOAD DATA ######
-            data = get_data(dataset, split_num=split, base=data_folder)
+        ####### LOAD DATA ######
+        data = get_data(dataset, split_num=split, base=data_folder)
 
         if n is not None: # truncate training  and test set
             data.X_train = data.X_train[:int(n)]
@@ -671,56 +643,14 @@ def load_data(dataset, split, data_folder, n, normalize_x):
     else:
         n = int(n)
 
-        if False:
-            import scipy.stats as ss
-            # Parameters of the mixture components
-            # norm_params = np.array([[5, 1],
-            #                         [9, 1.3]])
-            norm_params = np.array([[-.3, .1],
-                                [1.5, 1.]])
 
-            n_components = norm_params.shape[0]
-            # Weight of each component, in this case uniform
-            weights = np.ones(n_components, dtype=np.float64) / n_components
-            # A stream of indices from which to choose the component
-            mixture_idx_train = np.random.choice(len(weights), size=n, replace=True, p=weights)
-            
-            # y is the mixture sample
-            y_train = np.fromiter((ss.norm.rvs(*(norm_params[i])) for i in mixture_idx_train),
-                            dtype=np.float64)
-            mixture_idx_test = np.random.choice(len(weights), size=n, replace=True, p=weights)
-            y_test = np.fromiter((ss.norm.rvs(*(norm_params[i])) for i in mixture_idx_test), dtype=np.float64)
-
-            data = Dataset
-            data.X_train = np.ones_like(y_train).reshape((-1,1))
-            data.X_test = np.ones_like(y_test).reshape((-1,1))
-            data.Y_train = y_train.reshape((-1,1))
-            data.Y_test = y_test.reshape((-1,1))
-
-            def logdens_gaussmix(y, mus, sigmas, logweights):
-                assert len(y.shape)==1 ##one column y element
-                logdens = jax.scipy.stats.norm.logpdf(y,mus,sigmas)
-                logweightdens = logdens + logweights
-
-                ll = jax.scipy.special.logsumexp(logweightdens)
-
-                return ll
-
-
-            ll = jnp.mean(vmap(logdens_gaussmix,(0,None,None,None))(jnp.expand_dims(y_test,1),norm_params[:,0],norm_params[:,1], jnp.log(weights)))
-            print("true loglikelihood of test set", ll)
-
-
-        else:
+        if True:
             data = Dataset
             np.random.seed(0)
             data.X_train = np.random.uniform(-1,1,n)
             data.X_test = np.random.uniform(-1,1,n)
 
-
-            
-            
-            #s = n//3
+                        
             s = n//2
             data.Y_train = get_all(data.X_train, s)
             data.Y_test = get_all(data.X_test, s)
@@ -730,20 +660,15 @@ def load_data(dataset, split, data_folder, n, normalize_x):
             data.Y_train = data.Y_train.reshape((-1,1))
             data.Y_test = data.Y_test.reshape((-1,1))
 
-            #kludg because I am having dimension problem with stax and no time
-
+            #kludge because I am having dimension problem with stax 
             data.X_train = np.concatenate([data.X_train,data.X_train], axis=1)
             data.X_test = np.concatenate([data.X_test,data.X_test], axis=1)
 
-            #data.X_train, _, data.X_test, _, _, _ = normalize_data(data.X_train, data.Y_train, data.X_test, data.Y_test)
             plt.scatter(data.X_train[:,0],data.Y_train)
             plt.axvline(x=0.47976784, color='k', label='axvline - full height')
             savefigs("synth")
 
 
-
-
-            #plt.scatter(data.X_test,data.Y_test)
 
     return data, y_range
 
@@ -759,19 +684,13 @@ def plot_dgp_posterior(samples, X_test, y_range, chunkyfied_mix_preds):
 
     fname="dgp_posterior_logcolor"
     plt.matshow(res)
-    savefigs(fname) #, bbox_inches='tight')
-    #plt.close()
-    #mlflow.log_artifact(fname)
-    #os.remove(fname) #don't leave garbage
+    savefigs(fname) 
 
     expres = jnp.exp(res)
     fname="dgp_posterior"
     plt.matshow(expres, cmap='PuBu_r')  #"linear", "log", "symlog", "logit"
     ax = plt.gca()
-    savefigs(fname) #), bbox_inches='tight')
-    #plt.close()
-    #mlflow.log_artifact(fname)
-    #os.remove(fname) #don't leave garbage
+    savefigs(fname) 
 
 
 def plot_image(samples, x_range, y_range, chunkyfied_mix_preds, prefix):
@@ -788,34 +707,13 @@ def plot_image(samples, x_range, y_range, chunkyfied_mix_preds, prefix):
     # kludge, repeat X value
     xs = jnp.stack([xs,xs], 1)
 
-    if False: #"prior" in prefix:
-        x = xs[:,0]
-        y = ys[0]
-        vy_norm = vmap(jax.scipy.stats.norm.pdf,(0,None,None))
-        #ground_truth = (vy_norm(y , get_loc_1(x), get_scale_1(x)) + vy_norm(y , get_loc_2(x), get_scale_2(x)) + vy_norm(y , get_loc_3(x), get_scale_3(x)))/3.
-        ground_truth = (vy_norm(y , get_loc_1(x), get_scale_1(x)) + vy_norm(y , get_loc_2(x), get_scale_2(x)) )/2.
-        fname="image_groundtruth"
-        plt.matshow(ground_truth, cmap='PuBu_r', extent=[x_range[0],x_range[1],y_range[0],y_range[1]],aspect="auto", origin='lower')
-        savefigs(fname) #, bbox_inches='tight')
-
     res = vmap(chunkyfied_mix_preds, (None, None, 1)) (samples, xs, ys )[0]
-
-    if False:
-        fname=prefix + "_image_logcolor"
-        plt.matshow(res, extent=[x_range[0],x_range[1],y_range[0],y_range[1]],aspect="auto", origin='lower')
-        savefigs(fname) #, bbox_inches='tight')
-        #plt.close()
-        #mlflow.log_artifact(fname)
-        #os.remove(fname) #don't leave garbage
 
     expres = jnp.exp(res)
     fname=prefix + "_image"
     plt.matshow(expres, cmap='PuBu_r', extent=[x_range[0],x_range[1],y_range[0],y_range[1]],aspect="auto",origin='lower')  #"linear", "log", "symlog", "logit"
     ax = plt.gca()
-    savefigs(fname) #), bbox_inches='tight')
-    #plt.close()
-    #mlflow.log_artifact(fname)
-    #os.remove(fname) #don't leave garbage
+    savefigs(fname) 
 
 
 
@@ -827,9 +725,6 @@ from model import *
 
 # log_normalizer expressed in terms of standard parameters alpha and beta
 def log_normalizer(a,b):
-    #jç
-    #jax.debug.print("🤯 {b} 🤯", b=b)
-
     return -jax.scipy.special.gammaln(a+b) + jax.scipy.special.gammaln(a) + jax.scipy.special.gammaln(b)
 
 
@@ -978,28 +873,6 @@ def old_plot(dists, logDens, batch_mix, min_y, max_y, maxdens=None):
         jr=None
 
 
-    ###TODO
-    if False: 
-        #for each x in the batch, for each sampled_weight, sample y values
-
-        rng_key, beta_key, cat_key = jax.random.split(rng_key, 3)
-
-        M_y = 30
-
-        cat_key = jax.random.split(cat_key, M_y)
-        # sample from ys from Normal(0,1)
-        c = vmap(jax.random.categorical,in_axes= (0,None,None, None))(key=cat_key, logits= dists.logweights, axis = 2, shape=None)
-        ys = jax.random.normal(key=norm_key, shape=(x0.shape[0], M,  M_y))
-
-        mus = jnp.take(dists.mus,c)
-        sigmas = jnp.take(dists.sigmas,c)
-
-        y_unnormalize = lambda norm_y,mu,sigma: norm_y*sigma + mu
-        ys_unnormalize = vmap(y_unnormalize, in_axes=(2,None,None), out_axes=(2))
-
-        ys = ys_unnormalize(ys,mus,sigmas)
-
-
 
     for i in range(n_plots):
 
@@ -1018,23 +891,8 @@ def old_plot(dists, logDens, batch_mix, min_y, max_y, maxdens=None):
 
             ps_ij = ps[i,j]
 
-            if False:
-                log_ps_ij = log_ps[i,j]
-                try:
-                    # compare each dist to mix, midpoint approximation of the integral 
-                    js += 1/M * np.sum(step * ps_ij * (log_ps_ij - np.log(ps_mix_i))) 
-                except:
-                    pass
-
             ax1.plot(ys,ps_ij, color='r', alpha=.1)
 
-        if False:
-            #ax1.set_title("JR="+(f'{jr[i]:.4f}')+" JS≈"+(f'{js:.4f}')+" 1-exp(-cs)≈"+(f'{exp_cs[i]:.4f}'))
-            try:
-                ax1.set_title(" JSD ≈ "+(f'{js:.4f}'))
-                #ax1.set_title("JR="+(f'{jr[i]:.4f}')+" 1-exp(-cs)≈"+(f'{exp_cs[i]:.4f}'))
-            except:
-                pass
 
         if maxdens is not None:
             ax1.set_ylim(top=maxdens, bottom=0.)
@@ -1046,18 +904,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.colors import ListedColormap
 
-# # get colormap
-# ncolors = 256
-# color_array = plt.get_cmap('gist_rainbow')(range(ncolors))
 
-# # change alpha values
-# color_array[:,-1] = np.linspace(0.0,1.0,ncolors)
-
-# # create a colormap object
-# map_object = LinearSegmentedColormap.from_list(name='rainbow_alpha',colors=color_array)
-
-# # register this new colormap with matplotlib
-# plt.colormaps.register(cmap=map_object)
 
 def plot2D(fname, dists, logDens, batch_mix, min_y, max_y, x=None,  cdf_squeeze = None, logpdf_unsqueeze = None, maxdens=None): 
     
@@ -1099,11 +946,6 @@ def plot2D(fname, dists, logDens, batch_mix, min_y, max_y, x=None,  cdf_squeeze 
     vbatchYsLogDens = vmap(vmap(logDens, (0,None)),(None,0))
 
     vbatchYsLogDens = jit(vbatchYsLogDens)
-    # then over M, 
-    #vbatchYsMLogDens = vmap(vbatchYsLogDens,(None,0))
-
-    #ps = vbatchYsMLogDens(YY,dists)
-    #ps = jnp.exp(ps)
 
     boroughs = geopandas.read_file(geoplot.datasets.get_path('nyc_boroughs'))
 
@@ -1130,11 +972,6 @@ def plot2D(fname, dists, logDens, batch_mix, min_y, max_y, x=None,  cdf_squeeze 
             ps_mix = jnp.squeeze(chunkyfied_vbatchYsLogDens(YY, mixture))
 
         ps_mix = jnp.exp(ps_mix)
-
-        # if n_plots>1:
-        #     ax1 = axs1[int(np.ceil(i//n_cols)), i%n_cols]
-        # else:
-        #     ax1 = axs1
 
         if min_y is not None:
             boroughs.plot(ax=ax1,alpha=1.,color="white", edgecolor='k' )
@@ -1306,11 +1143,7 @@ def plot_x(dists, x, logDens, batch_mix, minval, maxval, cdf_squeeze, logpdf_uns
         n_rows = 1
         n_cols = 1 # for the refs plots, +1 for posterior
         fig1, axs1 = plt.subplots(n_rows, n_cols)
-    else:
-        print(x)
-        n_rows = 3
-        n_cols = 3 # for the refs plots, +1 for posterior
-        fig1, axs1 = plt.subplots(n_rows, n_cols, figsize=(33.867,19.05))
+
 
     n_plots = n_rows * n_cols
 
@@ -1318,13 +1151,7 @@ def plot_x(dists, x, logDens, batch_mix, minval, maxval, cdf_squeeze, logpdf_uns
     dists =  jax.tree_util.tree_map(lambda x: x[:n_plots], dists)
 
 
-    #minval = -3.
-    #maxval = 3.
-    if False:
-        step = 0.001 
-        #(maxval-minval)/points_plus_one
-        ys = np.arange(minval, maxval+step, step)
-    else: ## we want the original ys with some increased resolution
+    if True: ## we want the original ys with some increased resolution
         orig_ys = jax.lax.sort(jnp.squeeze(orig_ys))
         all_ys = [orig_ys]
         steps = orig_ys[1:] - orig_ys[:-1]
@@ -1402,50 +1229,32 @@ def plot_x(dists, x, logDens, batch_mix, minval, maxval, cdf_squeeze, logpdf_uns
             ax1.plot(ys,ps_truth, color='k')
 
 
-        #try:
-            #ax1.set_title("JR="+(f'{jr[i]:.4f}')+" 1-exp(-cs)≈"+(f'{exp_cs[i]:.4f}'))
-            #ax1.set_title(" JS≈"+(f'{js:.4f}'))
-        #except:
-        #    pass
-
         if maxdens is not None:
             ax1.set_ylim(top=maxdens, bottom=0.)
 
 
 
 def plot_save_mlflow(fname):
-    savefigs(fname) #, bbox_inches='tight')
-    #plt.close()
-    #mlflow.log_artifact(fname)
-    #os.remove(fname) #don't leave garbage
+    savefigs(fname) 
 
 def old_plot_ml_flow(dists,fname, min_y, max_y, logDens, batch_mix, maxdens=None):
     old_plot(dists, logDens, batch_mix, min_y, max_y, maxdens)
-    savefigs(fname) #, bbox_inches='tight')
-    #plt.close()
-    #mlflow.log_artifact(fname)
-    #os.remove(fname) #don't leave garbage
+    savefigs(fname) 
 
 def plot2D_ml_flow(dists,fname, min_y, max_y, logDens, batch_mix, x=None, cdf_squeeze = None, logpdf_unsqueeze = None, maxdens=None):
     plot2D(fname,dists, logDens, batch_mix, min_y, max_y, x, cdf_squeeze , logpdf_unsqueeze, maxdens )
-    #savefigs(fname) #, bbox_inches='tight')
+   
 
 
 
 def plot_ml_flow(dists,fname, logDens, batch_mix, minval, maxval, cdf_squeeze, logpdf_unsqueeze, orig_ys, r_factor, maxdens = None, logpdf_uncond=None):
     plot(dists, logDens, batch_mix, minval, maxval, cdf_squeeze, logpdf_unsqueeze, orig_ys, r_factor, maxdens, logpdf_uncond)
-    savefigs(fname) #, bbox_inches='tight')
-    #plt.close()
-    #mlflow.log_artifact(fname)
-    #os.remove(fname) #don't leave garbage
+    savefigs(fname) 
 
 
 def plot_ml_flow_x(dists,fname, x ,logDens, batch_mix, minval, maxval, cdf_squeeze, logpdf_unsqueeze, orig_ys, r_factor, maxdens = None):
     plot_x(dists, x, logDens, batch_mix, minval, maxval, cdf_squeeze, logpdf_unsqueeze, orig_ys, r_factor, maxdens)
-    savefigs(fname) #, bbox_inches='tight')
-    #plt.close()
-    #mlflow.log_artifact(fname)
-    #os.remove(fname) #don't leave garbage
+    savefigs(fname) 
 
 
 def plot_learning_curve(X_train, Y_train, batch_loglikelihood, num_chains, samples):
@@ -1479,9 +1288,7 @@ def plot_learning_curve(X_train, Y_train, batch_loglikelihood, num_chains, sampl
     fname = "full_mcmc_subtrain" 
     plt.ylim(jnp.percentile(all_ll,.8), max_so_far)
     savefigs(fname)
-    #plt.close()
-    #mlflow.log_artifact(fname)
-    #os.remove(fname) #don't leave garbage
+    
 
 
 def plot_one_learning_curve(key, X_train, Y_train, batch_loglikelihood, samples):
@@ -1489,12 +1296,7 @@ def plot_one_learning_curve(key, X_train, Y_train, batch_loglikelihood, samples)
     sub_indices  = jax.random.choice(key, X_train.shape[0], shape=(np.minimum(SUB_SIZE,X_train.shape[0]),), replace=False)
     sub_x_train = X_train[sub_indices]
     sub_y_train = Y_train[sub_indices]
-    #sub_x_train = X_train[:SUB_SIZE]
-    #sub_y_train = Y_train[:SUB_SIZE]
-
-    #sub_x_train = X_train
-    #sub_y_train = Y_train
-    
+       
 
     #make it lighter for plotting
     light_sample = tree_map(lambda x: x[::10], samples)
@@ -1877,10 +1679,7 @@ def sample_posterior_blackjax(validation, rng_key, loglikelihood, logprior, num_
         
         plt.ylim(min_percentile, max_val ) 
 
-        savefigs(fname) #, bbox_inches='tight')
-        #plt.close()
-        #mlflow.log_artifact(fname)
-        #os.remove(fname) #don't leave garbage
+        savefigs(fname) 
 
     if sampler == "vi": ## remove samples obtained during ELBO training
         samples = tree_map(lambda x: x[num_warmup:], samples)
@@ -2027,18 +1826,12 @@ def sample_posterior_sgmcmcjax(validation, rng_key, loglikelihood, logprior, num
     # eta : 0.1, 0.2, 0.4, 0.8
     if leap_frog_steps:
         print("Using build_sghmc_kernel")
-        #update_rate = 100
-        init_fn, my_kernel, get_params = build_sghmc_kernel(step_size, leap_frog_steps, loglikelihood, logprior, (X_train, Y_train), batch_size) #, alpha=ARGS.friction) ### give nans
-        #init_fn, my_kernel, get_params = build_sgld_kernel(step_size, loglikelihood, logprior, (X_train, Y_train), batch_size) #
-        #update_rate = 1000
-        #init_fn, my_kernel, get_params = build_sghmc_SVRG_kernel(ARGS.step_size, ARGS.leap_frog_steps, loglikelihood, logprior, (data.X_train, Y_train_squeezed), ARGS.batch_size, update_rate) ### give nans
 
+        init_fn, my_kernel, get_params = build_sghmc_kernel(step_size, leap_frog_steps, loglikelihood, logprior, (X_train, Y_train), batch_size) #, alpha=ARGS.friction) ### give nans
+        
     else:
         print("Using build_sgldAdam_kernel")
-        #update_rate = 100
-        #init_fn, my_kernel, get_params = build_sgld_SVRG_kernel(step_size, loglikelihood, logprior, (X_train, Y_train), batch_size, update_rate=update_rate) #
         init_fn, my_kernel, get_params = my_build_sgldAdam_kernel(step_size, loglikelihood, logprior, (X_train, Y_train), batch_size, maxnorm = maxnorm) #
-        #init_fn, my_kernel, get_params = build_sgldAdam_kernel(step_size, loglikelihood, logprior, (X_train, Y_train), batch_size) #
 
     if noncompiled:
         my_sampler = _build_noncompiled_sampler(init_fn, my_kernel, get_params)
@@ -2074,27 +1867,7 @@ def sample_posterior_sgmcmcjax(validation, rng_key, loglikelihood, logprior, num
 
         state[chain] = init_fn(subkey, params_IC)
 
-        if False:
-            CHUNKSIZE=20000
-            n_chunks = NSamples//CHUNKSIZE
-
-            all_samples = []
-            for _ in range(n_chunks):
-                rng_key, subkey = jax.random.split(rng_key, 2)
-                samples, state[chain] = my_sampler(subkey, CHUNKSIZE, state[chain])
-                all_samples.append(samples)
-
-            REST = NSamples%CHUNKSIZE
-            if REST>0:
-                rng_key, subkey = jax.random.split(rng_key, 2)
-                samples, state[chain] = my_sampler(subkey, REST, state[chain])
-                all_samples.append(samples)
-
-            if len(all_samples)>1:
-                samples[chain] = tree_concat(all_samples)
-            else:
-                samples[chain] = all_samples[0]
-        else:
+        if True:
             rng_key, subkey = jax.random.split(rng_key, 2)
             samples[chain], state[chain] = my_sampler(subkey, NSamples, state[chain])
 
@@ -2112,20 +1885,8 @@ def sample_posterior_sgmcmcjax(validation, rng_key, loglikelihood, logprior, num
         #print("final  state: ", state[chain])
 
     fname = "full_mcmc_subtrain" 
-    #plt.ylim(4., 5.5)
     plt.ylim(min_percentile_so_far, max_val_so_far)
-    savefigs(fname) #, bbox_inches='tight')
-    #plt.close()
-    #mlflow.log_artifact(fname)
-    #os.remove(fname) #don't leave garbage
-
-  
-    # plot_learning_curve(data.X_train, data.Y_train, batch_loglikelihood, num_chains, samples)
-    # for chain in range(num_chains):
-    #     # remove warmup, keep every
-    #     # start:stop:step
-    #     samples[chain] = tree_map(lambda x: x[num_warmup::keep_every], samples[chain])
-
+    savefigs(fname) 
 
     # put chain in dimension 1
     samples = tree_stack(samples, axis=1)
