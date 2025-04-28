@@ -19,7 +19,7 @@ from functools import partial
 import numpy as np
 import matplotlib
 # no type 3 fonts
-matplotlib.rcParams['pdf.fonttype'] = 42
+#matplotlib.rcParams['pdf.fonttype'] = 42
 from matplotlib import pyplot as plt
 import mlflow
 import os 

@@ -62,7 +62,7 @@ _internal.main(['list'])
 
 import matplotlib
 # no type 3 fonts
-matplotlib.rcParams['pdf.fonttype'] = 42
+#matplotlib.rcParams['pdf.fonttype'] = 42
 
 from matplotlib import pyplot as plt
 matplotlib.use('Agg')
